@@ -152,16 +152,18 @@ def _build_prompt(
     return prompt[:MAX_PROMPT_CHARS]
 
 
-def explain_repo(repo_data: Any, question: str) -> str:
+def explain_repo(repo_data: Any, question: str, api_key: str | None = None) -> str:
     """Ask Gemini to explain a repository using its tree, README, and key files."""
-    try:
-        from dotenv import load_dotenv
-    except ImportError:
-        pass
-    else:
-        load_dotenv()
-
-    api_key = os.getenv("GEMINI_API_KEY")
+    if isinstance(api_key, str):
+        api_key = api_key.strip()
+    if not api_key:
+        try:
+            from dotenv import load_dotenv
+        except ImportError:
+            pass
+        else:
+            load_dotenv()
+        api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         return generate_text("", SYSTEM_PROMPT, temperature=0.3, max_output_tokens=2048, api_key=api_key)
 

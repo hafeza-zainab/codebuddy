@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 import time
 
@@ -40,17 +41,27 @@ def _looks_like_error(message: str) -> bool:
 
 def _route_message(message: str, repo_data, hint_level: int) -> tuple[str, str]:
     """Send an error to debug mode and a question to repo explanation mode."""
+    entered_key = st.session_state.get("user_api_key", "")
+    api_key = entered_key.strip() if isinstance(entered_key, str) else ""
+    api_key = api_key or None
     if _looks_like_error(message):
-        return "debug", debug_with_repo(message, repo_data, hint_level)
-    return "explain", explain_repo(repo_data, message)
+        return "debug", debug_with_repo(message, repo_data, hint_level, api_key=api_key)
+    return "explain", explain_repo(repo_data, message, api_key=api_key)
 
 
 def _friendly_error(exc: Exception, action: str) -> str:
-    if isinstance(exc, RepoLoaderError):
-        return str(exc)
     message = str(exc)
+    entered_key = st.session_state.get("user_api_key", "")
+    if isinstance(entered_key, str) and entered_key:
+        message = message.replace(entered_key, "[hidden]")
+    if isinstance(exc, RepoLoaderError):
+        return message
     if "GEMINI_API_KEY" in message:
-        return "Gemini is not configured yet. Set GEMINI_API_KEY, then try again."
+        return "Gemini is not configured yet. Set GEMINI_API_KEY, then try again. Enter a key in the sidebar or use the Run demo button."
+    if "Your Gemini API key was rejected." in message:
+        if not (isinstance(entered_key, str) and entered_key.strip()) and not os.getenv("GEMINI_API_KEY"):
+            return "Gemini is not configured yet. Set GEMINI_API_KEY, then try again. Enter a key in the sidebar or use the Run demo button."
+        return "Gemini could not use that key. Check the key field in the sidebar, or use the Run demo button."
     if "free-tier rate limit" in message.lower():
         return "Gemini is busy or its free-tier limit was reached. Please try again later."
     if isinstance(exc, (ValueError, TypeError)):
@@ -179,6 +190,12 @@ def main() -> None:
             help="1 = gentle nudge · 2 = where to look · 3 = full explanation and corrected code",
         )
         st.caption("This setting applies when you paste an error or traceback.")
+        st.text_input(
+            "Your Gemini API key (optional)",
+            type="password",
+            key="user_api_key",
+            help="Used only for this browser session. Not saved. Get a free key at aistudio.google.com/apikey.",
+        )
 
         if load_clicked:
             if not repo_url:

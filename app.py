@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import re
 import time
+from pathlib import Path
 
 import streamlit as st
 
@@ -87,12 +88,23 @@ def _clear_demo_state() -> None:
 def _render_demo() -> None:
     """Render and advance the isolated, sample-only demo replay."""
     if not st.session_state.get("demo_active", False):
-        if st.button("Run demo"):
+        run_demo_col, sound_col = st.columns([1, 1])
+        sound_enabled = sound_col.checkbox("Play narration", value=True)
+        if run_demo_col.button("Run demo"):
             st.session_state["demo_active"] = True
             st.session_state["demo_started_at"] = time.monotonic()
             st.session_state["demo_step"] = 0
+            st.session_state["demo_sound"] = bool(sound_enabled)
             st.rerun()
         return
+
+    run_demo_col, sound_col = st.columns([1, 1])
+    run_demo_col.button("Run demo", disabled=True)
+    sound_col.checkbox(
+        "Play narration",
+        value=st.session_state.get("demo_sound", True),
+        disabled=True,
+    )
 
     started_at = st.session_state["demo_started_at"]
     elapsed = max(0.0, time.monotonic() - started_at)
@@ -104,6 +116,11 @@ def _render_demo() -> None:
         st.rerun()
 
     step_index = min(int(elapsed // step_duration), len(DEMO_STEPS) - 1)
+    if st.session_state.get("demo_step") != step_index:
+        st.session_state["demo_step"] = step_index
+        if st.session_state.get("demo_sound", True):
+            # Render the changed clip once from main(), outside this fast fragment.
+            st.rerun()
     st.session_state["demo_step"] = step_index
     step = DEMO_STEPS[step_index]
     step_elapsed = elapsed - step_index * step_duration
@@ -162,6 +179,17 @@ def main() -> None:
     st.caption("Explore a GitHub project or get beginner-friendly help with an error.")
     _render_demo()
     demo_active = bool(st.session_state.get("demo_active", False))
+    narration_on = demo_active and bool(st.session_state.get("demo_sound", True))
+    if narration_on:
+        demo_step = st.session_state.get("demo_step", 0)
+        audio_path = (
+            Path(__file__).resolve().parent
+            / "assets"
+            / "audio"
+            / f"step_{demo_step + 1:02d}.mp3"
+        )
+        if audio_path.is_file():
+            st.audio(str(audio_path), format="audio/mpeg", autoplay=True)
 
     st.session_state.setdefault("messages", [])
     st.session_state.setdefault("loaded_repo_url", "")
@@ -188,6 +216,7 @@ def main() -> None:
             max_value=3,
             value=2,
             help="1 = gentle nudge · 2 = where to look · 3 = full explanation and corrected code",
+            disabled=narration_on,
         )
         st.caption("This setting applies when you paste an error or traceback.")
         st.text_input(
@@ -195,6 +224,7 @@ def main() -> None:
             type="password",
             key="user_api_key",
             help="Used only for this browser session. Not saved. Get a free key at aistudio.google.com/apikey.",
+            disabled=narration_on,
         )
 
         if load_clicked:

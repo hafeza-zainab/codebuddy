@@ -95,6 +95,7 @@ def _render_demo(audio_slot) -> None:
             st.session_state["demo_started_at"] = time.monotonic()
             st.session_state["demo_step"] = -1
             st.session_state["demo_sound"] = bool(sound_enabled)
+            st.session_state["demo_audio_cache"] = {}
             st.rerun()
         return
 
@@ -117,21 +118,22 @@ def _render_demo(audio_slot) -> None:
         st.rerun()
 
     step_index = min(int(elapsed // step_duration), len(DEMO_STEPS) - 1)
-    if st.session_state.get("demo_step") != step_index:
+    step_changed = st.session_state.get("demo_step") != step_index
+    if step_changed:
         st.session_state["demo_step"] = step_index
-        if st.session_state.get("demo_sound", True):
+
+    clip_bytes = None
+    if st.session_state.get("demo_sound", True):
+        audio_cache = st.session_state.setdefault("demo_audio_cache", {})
+        if step_index not in audio_cache:
             audio_path = (
                 Path(__file__).resolve().parent
                 / "assets"
                 / "audio"
                 / f"step_{step_index + 1:02d}.mp3"
             )
-            if audio_path.is_file():
-                audio_slot.audio(str(audio_path), format="audio/mpeg", autoplay=True)
-            else:
-                audio_slot.empty()
-        else:
-            audio_slot.empty()
+            audio_cache[step_index] = audio_path.read_bytes() if audio_path.is_file() else None
+        clip_bytes = audio_cache[step_index]
     st.session_state["demo_step"] = step_index
     step = DEMO_STEPS[step_index]
     step_elapsed = elapsed - step_index * step_duration
@@ -143,6 +145,11 @@ def _render_demo(audio_slot) -> None:
             audio_slot.empty()
             _clear_demo_state()
             st.rerun()
+
+        if st.session_state.get("demo_sound", True) and clip_bytes is not None:
+            audio_slot.audio(clip_bytes, format="audio/mpeg", autoplay=True)
+        elif step_changed:
+            audio_slot.empty()
 
         st.progress(
             min(elapsed / total_duration, 1.0),
@@ -196,7 +203,7 @@ def main() -> None:
     st.html(
         """
         <style>
-          .st-key-demo-audio-slot .stAudio {
+          .st-key-demo-audio-slot audio.stAudio {
             position: fixed !important;
             left: 0 !important;
             bottom: 0 !important;
@@ -205,11 +212,6 @@ def main() -> None:
             overflow: hidden !important;
             opacity: 0 !important;
             pointer-events: none !important;
-          }
-          .st-key-demo-audio-slot .stAudio audio {
-            width: 1px !important;
-            height: 1px !important;
-            opacity: 0 !important;
           }
           #codebuddy-demo-audio-enable {
             position: fixed;
@@ -233,7 +235,7 @@ def main() -> None:
             if (window.__codebuddyDemoAudioWatchInstalled) return;
             window.__codebuddyDemoAudioWatchInstalled = true;
 
-            const selector = ".st-key-demo-audio-slot .stAudio audio";
+            const selector = ".st-key-demo-audio-slot audio.stAudio";
             let currentAudio = null;
             let currentSource = null;
 

@@ -41,6 +41,8 @@ notepad .env
 streamlit run app.py
 ```
 
+Make sure the file is named .env, not .env.txt. Notepad sometimes adds .txt.
+
 In Notepad, add your key after `GEMINI_API_KEY=` and save the file.
 
 ### Unix shell
@@ -52,11 +54,13 @@ python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
 cp .env.example .env
-vi .env
+nano .env
 streamlit run app.py
 ```
 
-In the editor, add your key after `GEMINI_API_KEY=` and save the file.
+In the editor, add your key after GEMINI_API_KEY= and save the file.
+
+You can also skip the .env step: paste a key into the sidebar field after starting the app, or press Run demo, which needs no key.
 
 ## The demo
 
@@ -72,16 +76,7 @@ It provides two main features:
 *   **Repository Explanation:** You can provide a link to a public GitHub repository, and the chatbot will explain what the project does, where you should start reading the code, and how to run it.
 *   **Debugging Assistance:** If you paste an error message (a "traceback") into the chat, the bot acts as a tutor. Instead of just giving you the answer, it provides hints in stages, helping you learn how to fix the problem yourself.
 
-**How to run the project:**
-Based on the provided files, you can run the application using the [Streamlit](https://streamlit.io/) framework. 
-
-1.  **Install dependencies:** Ensure you have Python installed, then install the required packages listed in `requirements.txt` by running:
-    `pip install -r requirements.txt`
-2.  **Configure the API key:** Copy the `.env.example` file to a new file named `.env` and add your `GEMINI_API_KEY` to it. This key allows the chatbot to generate responses using the Gemini AI model.
-3.  **Start the application:** Run the following command in your terminal:
-    `streamlit run app.py`
-
-If you do not have an API key, you can still use the "Run demo" button within the app to see how it works using pre-written sample responses.
+(Shortened; the Run demo button shows the full answer.)
 
 **Debug example:** The demo uses this `NameError` traceback at each hint level:
 

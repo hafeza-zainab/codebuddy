@@ -2,28 +2,25 @@
 
 from __future__ import annotations
 
-import json
 import os
 import re
 import sys
 from collections.abc import Mapping
-from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
 
-
-MODEL_NAME = "gemini-3.8-flash"
+from gemini_client import generate_text
 MAX_PROMPT_CHARS = 18_000
 TRACEBACK_FRAME = re.compile(r'File "([^"]+)", line (\d+)')
 ERROR_NAME = re.compile(r"^([A-Za-z_][\w.]*)\s*(?::|$)")
 
-SYSTEM_PROMPT = """You are CodeBuddy, a patient debugging tutor for people who are new to programming.
+SYSTEM_PROMPT = """You are a patient debugging tutor for people who are new to programming.
 Explain causes in plain beginner language, and explain any technical term you need to use.
+Do not begin with a greeting or an introduction. Start directly with the helpful content.
 Follow the requested hint level exactly. Never skip levels or include a higher-level answer
 unless the user explicitly asks for that level. Do not give the fix in a lower-level hint.
 
-Hint level 1: Give a gentle nudge that names the kind of problem (for example, a missing
-name or a value of the wrong type). Do not identify the exact fix, replacement text, or a
-corrected code snippet. Ask the learner what they could inspect next.
+Hint level 1: In one or two plain sentences, name only the general kind of problem, then ask
+one reflective question. Stay under 70 words. Do not mention any file name, line number,
+variable name, or function name from the traceback. Do not include code. Do not name the fix.
 
 Hint level 2: Point to the exact file and line from the traceback, and explain what about
 that line or nearby values is causing the error. Do not provide the full fix or corrected
@@ -133,43 +130,6 @@ def _build_prompt(error_text: str, hint_level: int, code_context: object, detail
     return prompt
 
 
-def _call_gemini(prompt: str, api_key: str) -> str:
-    endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL_NAME}:generateContent"
-    payload = {
-        "systemInstruction": {"parts": [{"text": SYSTEM_PROMPT}]},
-        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.25, "maxOutputTokens": 1400},
-    }
-    request = Request(
-        endpoint,
-        data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json", "x-goog-api-key": api_key},
-        method="POST",
-    )
-    try:
-        with urlopen(request, timeout=60) as response:
-            result = json.loads(response.read().decode("utf-8"))
-    except HTTPError as exc:
-        if exc.code == 429:
-            raise RuntimeError("Gemini's free-tier rate limit was reached. Try again later.") from exc
-        if exc.code in {401, 403}:
-            raise RuntimeError("Gemini rejected the API key or model access. Check your Google AI Studio key.") from exc
-        raise RuntimeError(f"Gemini request failed with HTTP {exc.code}.") from exc
-    except URLError as exc:
-        raise RuntimeError(f"Could not reach Gemini: {exc.reason}") from exc
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise RuntimeError("Gemini returned an unreadable response.") from exc
-
-    candidates = result.get("candidates") or []
-    if not candidates:
-        raise RuntimeError("Gemini returned no hint. The request may have been blocked by a safety filter.")
-    parts = candidates[0].get("content", {}).get("parts", [])
-    answer = "\n".join(part["text"] for part in parts if isinstance(part, dict) and part.get("text"))
-    if not answer:
-        raise RuntimeError("Gemini returned an empty hint. Please try again.")
-    return answer.strip()
-
-
 def debug_error(error_text: str, hint_level: int, code_context: object = None) -> str:
     """Return a beginner-friendly debugging hint at the requested level (1, 2, or 3)."""
     if isinstance(hint_level, bool) or not isinstance(hint_level, int) or hint_level not in (1, 2, 3):
@@ -185,11 +145,17 @@ def debug_error(error_text: str, hint_level: int, code_context: object = None) -
         load_dotenv()
 
     details = parse_traceback(error_text)
-    prompt = _build_prompt(error_text, hint_level, code_context, details)
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
-        raise RuntimeError("GEMINI_API_KEY is not set. Add it to your environment and try again.")
-    return _call_gemini(prompt, api_key)
+        return generate_text("", SYSTEM_PROMPT, temperature=0.25, max_output_tokens=1400, api_key=api_key)
+    prompt = _build_prompt(error_text, hint_level, code_context, details)
+    return generate_text(
+        prompt,
+        SYSTEM_PROMPT,
+        temperature=0.25,
+        max_output_tokens=1400,
+        api_key=api_key,
+    )
 
 
 def _repo_parts(repo_data: object) -> tuple[list[str], object]:

@@ -85,7 +85,7 @@ def _clear_demo_state() -> None:
 
 
 @st.fragment(run_every=DEMO_TICK_SECONDS * PACE)
-def _render_demo() -> None:
+def _render_demo(audio_slot) -> None:
     """Render and advance the isolated, sample-only demo replay."""
     if not st.session_state.get("demo_active", False):
         run_demo_col, sound_col = st.columns([1, 1])
@@ -93,7 +93,7 @@ def _render_demo() -> None:
         if run_demo_col.button("Run demo"):
             st.session_state["demo_active"] = True
             st.session_state["demo_started_at"] = time.monotonic()
-            st.session_state["demo_step"] = 0
+            st.session_state["demo_step"] = -1
             st.session_state["demo_sound"] = bool(sound_enabled)
             st.rerun()
         return
@@ -112,6 +112,7 @@ def _render_demo() -> None:
     total_duration = len(DEMO_STEPS) * step_duration
 
     if elapsed >= total_duration:
+        audio_slot.empty()
         _clear_demo_state()
         st.rerun()
 
@@ -119,8 +120,18 @@ def _render_demo() -> None:
     if st.session_state.get("demo_step") != step_index:
         st.session_state["demo_step"] = step_index
         if st.session_state.get("demo_sound", True):
-            # Render the changed clip once from main(), outside this fast fragment.
-            st.rerun()
+            audio_path = (
+                Path(__file__).resolve().parent
+                / "assets"
+                / "audio"
+                / f"step_{step_index + 1:02d}.mp3"
+            )
+            if audio_path.is_file():
+                audio_slot.audio(str(audio_path), format="audio/mpeg", autoplay=True)
+            else:
+                audio_slot.empty()
+        else:
+            audio_slot.empty()
     st.session_state["demo_step"] = step_index
     step = DEMO_STEPS[step_index]
     step_elapsed = elapsed - step_index * step_duration
@@ -129,6 +140,7 @@ def _render_demo() -> None:
         caption_col, stop_col = st.columns([5, 1])
         caption_col.info(step["caption"])
         if stop_col.button("Stop demo"):
+            audio_slot.empty()
             _clear_demo_state()
             st.rerun()
 
@@ -177,19 +189,109 @@ def main() -> None:
     st.set_page_config(page_title="CodeBuddy", page_icon="💬", layout="centered")
     st.title("CodeBuddy")
     st.caption("Explore a GitHub project or get beginner-friendly help with an error.")
-    _render_demo()
+
+    with st.container(key="demo-audio-slot"):
+        audio_slot = st.empty()
+
+    st.html(
+        """
+        <style>
+          .st-key-demo-audio-slot .stAudio {
+            position: fixed !important;
+            left: 0 !important;
+            bottom: 0 !important;
+            width: 1px !important;
+            height: 1px !important;
+            overflow: hidden !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+          }
+          .st-key-demo-audio-slot .stAudio audio {
+            width: 1px !important;
+            height: 1px !important;
+            opacity: 0 !important;
+          }
+          #codebuddy-demo-audio-enable {
+            position: fixed;
+            left: 12px;
+            bottom: 12px;
+            z-index: 10000;
+            border: 0;
+            border-radius: 6px;
+            padding: 8px 12px;
+            color: white;
+            background: #2457a7;
+            font: inherit;
+            cursor: pointer;
+          }
+        </style>
+        <button id="codebuddy-demo-audio-enable" type="button" hidden>
+          Tap to enable sound
+        </button>
+        <script>
+          (() => {
+            if (window.__codebuddyDemoAudioWatchInstalled) return;
+            window.__codebuddyDemoAudioWatchInstalled = true;
+
+            const selector = ".st-key-demo-audio-slot .stAudio audio";
+            let currentAudio = null;
+            let currentSource = null;
+
+            const hideButton = () => {
+              const button = document.getElementById("codebuddy-demo-audio-enable");
+              if (button) button.hidden = true;
+            };
+            const showButton = () => {
+              const button = document.getElementById("codebuddy-demo-audio-enable");
+              if (button) button.hidden = false;
+            };
+            const watchAudio = () => {
+              const audio = document.querySelector(selector);
+              if (!audio) {
+                currentAudio = null;
+                currentSource = null;
+                hideButton();
+                return;
+              }
+              const source = audio.getAttribute("src");
+              if (audio === currentAudio && source === currentSource) return;
+              currentAudio = audio;
+              currentSource = source;
+              hideButton();
+              audio.addEventListener("playing", hideButton, { once: true });
+              const playback = audio.play();
+              if (playback && typeof playback.catch === "function") {
+                playback.catch(() => {
+                  if (currentAudio === audio && currentSource === source) showButton();
+                });
+              }
+            };
+
+            document.addEventListener("click", (event) => {
+              if (!event.target.closest("#codebuddy-demo-audio-enable")) return;
+              if (!currentAudio) return;
+              const playback = currentAudio.play();
+              if (playback && typeof playback.then === "function") {
+                playback.then(hideButton).catch(showButton);
+              }
+            });
+
+            new MutationObserver(watchAudio).observe(document.body, {
+              childList: true,
+              subtree: true,
+              attributes: true,
+              attributeFilter: ["src"],
+            });
+            watchAudio();
+          })();
+        </script>
+        """,
+        unsafe_allow_javascript=True,
+    )
+
+    _render_demo(audio_slot)
     demo_active = bool(st.session_state.get("demo_active", False))
     narration_on = demo_active and bool(st.session_state.get("demo_sound", True))
-    if narration_on:
-        demo_step = st.session_state.get("demo_step", 0)
-        audio_path = (
-            Path(__file__).resolve().parent
-            / "assets"
-            / "audio"
-            / f"step_{demo_step + 1:02d}.mp3"
-        )
-        if audio_path.is_file():
-            st.audio(str(audio_path), format="audio/mpeg", autoplay=True)
 
     st.session_state.setdefault("messages", [])
     st.session_state.setdefault("loaded_repo_url", "")

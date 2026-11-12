@@ -17,7 +17,7 @@ from repo_loader import RepoLoaderError, load_repo
 
 PACE = 1.0
 DEMO_STEP_SECONDS = 11.0
-DEMO_TICK_SECONDS = 0.1
+DEMO_TICK_SECONDS = 0.5
 
 AUDIO_CLIP_PATHS = tuple(
     Path(__file__).resolve().parent / "static" / "audio" / f"step_{step:02d}.mp3"

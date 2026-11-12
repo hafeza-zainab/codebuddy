@@ -70,7 +70,7 @@ CodeBuddy reads public repositories through the GitHub API. Without a token, Git
 
 The **Run demo** button replays sample responses recorded from live runs of this bot. The intro, repo-loaded, and closing messages are scripted. The demo needs no Gemini key.
 
-The demo has optional voice-over narration (the Play narration toggle, off by default because browser autoplay rules can make it unreliable). The nine narration clips were generated with the edge-tts library using Microsoft's en-US-JennyNeural voice, so the narration is AI-generated. The generator is tools/generate_narration.py and the clips are in assets/audio/. The demo video includes the same voice-over.
+The demo has optional voice-over narration (the Play narration toggle, off by default because browser autoplay rules can make it unreliable). The nine narration clips were generated with the edge-tts library using Microsoft's en-US-JennyNeural voice, so the narration is AI-generated. The generator is tools/generate_narration.py and the clips are in static/audio/. The demo video includes the same voice-over.
 
 ## Example session
 

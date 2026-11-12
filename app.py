@@ -17,8 +17,224 @@ from repo_loader import RepoLoaderError, load_repo
 
 PACE = 1.0
 DEMO_STEP_SECONDS = 11.0
-DEMO_LAST_NARRATION_EXTRA_SECONDS = 4.0
 DEMO_TICK_SECONDS = 0.1
+
+AUDIO_CLIP_PATHS = tuple(
+    Path(__file__).resolve().parent / "static" / "audio" / f"step_{step:02d}.mp3"
+    for step in range(1, 10)
+)
+AUDIO_CLIPS_AVAILABLE = all(path.is_file() for path in AUDIO_CLIP_PATHS)
+
+NARRATION_CONTROLLER_HTML = r"""
+<style>
+  #codebuddy-demo-audio-enable {
+    position: fixed;
+    left: 12px;
+    bottom: 12px;
+    z-index: 10000;
+    border: 0;
+    border-radius: 6px;
+    padding: 8px 12px;
+    color: white;
+    background: #2457a7;
+    font: inherit;
+    cursor: pointer;
+  }
+  #codebuddy-demo-audio-enable[hidden] {
+    display: none !important;
+  }
+</style>
+<button id="codebuddy-demo-audio-enable" type="button" hidden>
+  Tap to enable sound
+</button>
+<script>
+(() => {
+  const singletonKey = "__codebuddyNarration";
+  if (window[singletonKey]) return;
+
+  const urls = [
+    "/app/static/audio/step_01.mp3",
+    "/app/static/audio/step_02.mp3",
+    "/app/static/audio/step_03.mp3",
+    "/app/static/audio/step_04.mp3",
+    "/app/static/audio/step_05.mp3",
+    "/app/static/audio/step_06.mp3",
+    "/app/static/audio/step_07.mp3",
+    "/app/static/audio/step_08.mp3",
+    "/app/static/audio/step_09.mp3"
+  ];
+  const controller = {
+    clips: [],
+    lastStep: null,
+    currentStep: null,
+    currentAudio: null,
+    markerAbsentSince: Date.now(),
+    stopped: false,
+    observer: null
+  };
+  window[singletonKey] = controller;
+
+  const debug = (...parts) => {
+    if (window.__codebuddyAudioDebug === true) {
+      console.log("[codebuddy-audio]", ...parts);
+    }
+  };
+  const tapButton = () => document.getElementById("codebuddy-demo-audio-enable");
+  const hideTapButton = () => {
+    const button = tapButton();
+    if (button) button.hidden = true;
+  };
+  const showTapButton = () => {
+    const button = tapButton();
+    if (button) button.hidden = false;
+  };
+  const resetClip = (clip) => {
+    try {
+      clip.pause();
+      clip.currentTime = 0;
+    } catch (error) {
+      debug("clip-reset-error", error && error.message);
+    }
+  };
+  const pauseAndResetAll = () => {
+    controller.clips.forEach(resetClip);
+    controller.currentAudio = null;
+    controller.currentStep = null;
+  };
+  const pauseAndResetOthers = (current) => {
+    controller.clips.forEach((clip) => {
+      if (clip !== current) resetClip(clip);
+    });
+  };
+  const playStep = (step, reason) => {
+    const clip = controller.clips[step - 1];
+    if (!clip) return;
+
+    pauseAndResetOthers(clip);
+    try {
+      clip.currentTime = 0;
+    } catch (error) {
+      debug("clip-seek-error", step, error && error.message);
+    }
+    controller.currentStep = step;
+    controller.currentAudio = clip;
+    controller.lastStep = step;
+
+    const onRejected = (error) => {
+      if (controller.currentAudio !== clip) return;
+      showTapButton();
+      debug("play-rejected", step, error && error.name);
+    };
+    try {
+      const playback = clip.play();
+      if (playback && typeof playback.then === "function") {
+        playback.then(() => {
+          if (controller.currentAudio === clip) hideTapButton();
+          debug("play-started", step, reason);
+        }).catch(onRejected);
+      } else {
+        hideTapButton();
+        debug("play-requested", step, reason);
+      }
+    } catch (error) {
+      onRejected(error);
+    }
+  };
+  const startNewRun = (reason, observedStep) => {
+    pauseAndResetAll();
+    controller.lastStep = null;
+    controller.markerAbsentSince = null;
+    controller.stopped = false;
+    playStep(observedStep, reason);
+    debug("new-run-started", reason, observedStep);
+  };
+
+  controller.clips = urls.map((url, index) => {
+    const clip = new Audio();
+    clip.preload = "auto";
+    clip.src = url;
+    clip.addEventListener("error", () => {
+      console.error("[codebuddy-audio] clip load error", index + 1, clip.error && clip.error.message);
+    });
+    clip.addEventListener("playing", () => {
+      if (controller.currentAudio === clip) hideTapButton();
+    });
+    clip.load();
+    return clip;
+  });
+
+  const scanMarker = () => {
+    const markers = document.querySelectorAll("[data-codebuddy-demo-step]");
+    if (markers.length === 0) {
+      if (controller.markerAbsentSince === null) controller.markerAbsentSince = Date.now();
+      debug("marker-absent");
+      return;
+    }
+
+    const marker = markers[markers.length - 1];
+    const step = Number(marker.getAttribute("data-codebuddy-demo-step"));
+    if (!Number.isInteger(step) || step < 1 || step > 9) return;
+
+    if (controller.stopped) {
+      if (controller.markerAbsentSince === null) return;
+      startNewRun("after-stop", step);
+      return;
+    }
+
+    if (controller.lastStep !== null && step < controller.lastStep) {
+      startNewRun("step-went-backward", step);
+      return;
+    }
+
+    controller.markerAbsentSince = null;
+    if (step !== controller.lastStep) {
+      playStep(step, "step-marker");
+    } else {
+      debug("repeat-ignored", step);
+    }
+  };
+
+  document.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const button = target.closest("button");
+    if (!button || button.textContent.trim() !== "Stop demo") return;
+
+    pauseAndResetAll();
+    controller.lastStep = null;
+    controller.markerAbsentSince = null;
+    controller.stopped = true;
+    hideTapButton();
+    debug("stopped-by-user");
+  }, true);
+
+  document.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof Element) || !target.closest("#codebuddy-demo-audio-enable")) return;
+    event.preventDefault();
+    if (controller.currentStep !== null && !controller.stopped) {
+      playStep(controller.currentStep, "tap-to-enable");
+    }
+  }, true);
+
+  controller.observer = new MutationObserver(() => {
+    try {
+      scanMarker();
+    } catch (error) {
+      debug("observer-error", error && error.message);
+    }
+  });
+  controller.observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["data-codebuddy-demo-step"]
+  });
+  scanMarker();
+  debug("controller-installed");
+})();
+</script>
+"""
 
 
 ERROR_MARKERS = re.compile(
@@ -86,7 +302,7 @@ def _clear_demo_state() -> None:
 
 
 @st.fragment(run_every=DEMO_TICK_SECONDS * PACE)
-def _render_demo(audio_slot) -> None:
+def _render_demo() -> None:
     """Render and advance the isolated, sample-only demo replay."""
     if not st.session_state.get("demo_active", False):
         run_demo_col, sound_col = st.columns([1, 1])
@@ -100,7 +316,6 @@ def _render_demo(audio_slot) -> None:
             st.session_state["demo_started_at"] = time.monotonic()
             st.session_state["demo_step"] = -1
             st.session_state["demo_sound"] = bool(sound_enabled)
-            st.session_state["demo_audio_cache"] = {}
             st.rerun()
         return
 
@@ -117,31 +332,13 @@ def _render_demo(audio_slot) -> None:
     elapsed = max(0.0, time.monotonic() - started_at)
     step_duration = DEMO_STEP_SECONDS * PACE
     narration_on = bool(st.session_state.get("demo_sound", False))
-    last_step_extra = DEMO_LAST_NARRATION_EXTRA_SECONDS * PACE if narration_on else 0.0
-    total_duration = len(DEMO_STEPS) * step_duration + last_step_extra
+    total_duration = len(DEMO_STEPS) * step_duration
 
     if elapsed >= total_duration:
-        audio_slot.empty()
         _clear_demo_state()
         st.rerun()
 
     step_index = min(int(elapsed // step_duration), len(DEMO_STEPS) - 1)
-    step_changed = st.session_state.get("demo_step") != step_index
-    if step_changed:
-        st.session_state["demo_step"] = step_index
-
-    clip_bytes = None
-    if st.session_state.get("demo_sound", False):
-        audio_cache = st.session_state.setdefault("demo_audio_cache", {})
-        if step_index not in audio_cache:
-            audio_path = (
-                Path(__file__).resolve().parent
-                / "assets"
-                / "audio"
-                / f"step_{step_index + 1:02d}.mp3"
-            )
-            audio_cache[step_index] = audio_path.read_bytes() if audio_path.is_file() else None
-        clip_bytes = audio_cache[step_index]
     st.session_state["demo_step"] = step_index
     step = DEMO_STEPS[step_index]
     step_elapsed = elapsed - step_index * step_duration
@@ -150,14 +347,13 @@ def _render_demo(audio_slot) -> None:
         caption_col, stop_col = st.columns([5, 1])
         caption_col.info(step["caption"])
         if stop_col.button("Stop demo"):
-            audio_slot.empty()
             _clear_demo_state()
             st.rerun()
 
-        if st.session_state.get("demo_sound", False) and clip_bytes is not None:
-            audio_slot.audio(clip_bytes, format="audio/mpeg", autoplay=True)
-        elif step_changed:
-            audio_slot.empty()
+        if narration_on and AUDIO_CLIPS_AVAILABLE:
+            st.html(
+                f'<span data-codebuddy-demo-step="{step_index + 1}" style="display:none"></span>'
+            )
 
         st.progress(
             min(elapsed / total_duration, 1.0),
@@ -205,101 +401,15 @@ def main() -> None:
     st.title("CodeBuddy")
     st.caption("Explore a GitHub project or get beginner-friendly help with an error.")
 
-    with st.container(key="demo-audio-slot"):
-        audio_slot = st.empty()
-
-    st.html(
-        """
-        <style>
-          .st-key-demo-audio-slot audio.stAudio {
-            position: fixed !important;
-            left: 0 !important;
-            bottom: 0 !important;
-            width: 1px !important;
-            height: 1px !important;
-            overflow: hidden !important;
-            opacity: 0 !important;
-            pointer-events: none !important;
-          }
-          #codebuddy-demo-audio-enable {
-            position: fixed;
-            left: 12px;
-            bottom: 12px;
-            z-index: 10000;
-            border: 0;
-            border-radius: 6px;
-            padding: 8px 12px;
-            color: white;
-            background: #2457a7;
-            font: inherit;
-            cursor: pointer;
-          }
-        </style>
-        <button id="codebuddy-demo-audio-enable" type="button" hidden>
-          Tap to enable sound
-        </button>
-        <script>
-          (() => {
-            if (window.__codebuddyDemoAudioWatchInstalled) return;
-            window.__codebuddyDemoAudioWatchInstalled = true;
-
-            const selector = ".st-key-demo-audio-slot audio.stAudio";
-            let currentAudio = null;
-            let currentSource = null;
-
-            const hideButton = () => {
-              const button = document.getElementById("codebuddy-demo-audio-enable");
-              if (button) button.hidden = true;
-            };
-            const showButton = () => {
-              const button = document.getElementById("codebuddy-demo-audio-enable");
-              if (button) button.hidden = false;
-            };
-            const watchAudio = () => {
-              const audio = document.querySelector(selector);
-              if (!audio) {
-                currentAudio = null;
-                currentSource = null;
-                hideButton();
-                return;
-              }
-              const source = audio.getAttribute("src");
-              if (audio === currentAudio && source === currentSource) return;
-              currentAudio = audio;
-              currentSource = source;
-              hideButton();
-              audio.addEventListener("playing", hideButton, { once: true });
-              const playback = audio.play();
-              if (playback && typeof playback.catch === "function") {
-                playback.catch(() => {
-                  if (currentAudio === audio && currentSource === source) showButton();
-                });
-              }
-            };
-
-            document.addEventListener("click", (event) => {
-              if (!event.target.closest("#codebuddy-demo-audio-enable")) return;
-              if (!currentAudio) return;
-              const playback = currentAudio.play();
-              if (playback && typeof playback.then === "function") {
-                playback.then(hideButton).catch(showButton);
-              }
-            });
-
-            new MutationObserver(watchAudio).observe(document.body, {
-              childList: true,
-              subtree: true,
-              attributes: true,
-              attributeFilter: ["src"],
-            });
-            watchAudio();
-          })();
-        </script>
-        """,
-        unsafe_allow_javascript=True,
+    controller_active = bool(
+        st.session_state.get("demo_active", False)
+        and st.session_state.get("demo_sound", False)
+        and AUDIO_CLIPS_AVAILABLE
     )
+    if controller_active:
+        st.html(NARRATION_CONTROLLER_HTML, unsafe_allow_javascript=True)
 
-    _render_demo(audio_slot)
+    _render_demo()
     demo_active = bool(st.session_state.get("demo_active", False))
     narration_on = demo_active and bool(st.session_state.get("demo_sound", False))
 

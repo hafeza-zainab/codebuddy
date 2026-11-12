@@ -75,7 +75,7 @@ def mp3_duration_seconds(path: Path) -> float:
 
 
 async def generate() -> None:
-    output_dir = Path(__file__).resolve().parents[1] / "assets" / "audio"
+    output_dir = Path(__file__).resolve().parents[1] / "static" / "audio"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     for index, line in enumerate(NARRATION_LINES, start=1):

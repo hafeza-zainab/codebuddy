@@ -50,9 +50,11 @@ def _request(url: str, *, api: bool = False) -> tuple[bytes, dict[str, str]]:
             return response.read(), {k.lower(): v for k, v in response.headers.items()}
     except HTTPError as exc:
         if exc.code == 403 and exc.headers.get("X-RateLimit-Remaining") == "0":
-            raise RepoLoaderError("GitHub API rate limit reached. Set GITHUB_TOKEN and try again later.") from exc
+            raise RepoLoaderError("GitHub is limiting requests from this host right now. Please wait a few minutes and try again, or run CodeBuddy locally with your own GITHUB_TOKEN (see the README).") from exc
         if exc.code == 403:
             raise RepoLoaderError("GitHub denied the request. Check repository access and try again.") from exc
+        if exc.code == 429:
+            raise RepoLoaderError("GitHub is limiting requests from this host right now. Please wait a few minutes and try again, or run CodeBuddy locally with your own GITHUB_TOKEN (see the README).") from exc
         if exc.code == 404:
             raise RepoLoaderError("File or repository not found; the repository may be private or the path may be invalid.") from exc
         raise RepoLoaderError(f"GitHub request failed (HTTP {exc.code}).") from exc

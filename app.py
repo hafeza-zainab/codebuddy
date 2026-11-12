@@ -17,6 +17,7 @@ from repo_loader import RepoLoaderError, load_repo
 
 PACE = 1.0
 DEMO_STEP_SECONDS = 11.0
+DEMO_LAST_NARRATION_EXTRA_SECONDS = 4.0
 DEMO_TICK_SECONDS = 0.1
 
 
@@ -115,7 +116,9 @@ def _render_demo(audio_slot) -> None:
     started_at = st.session_state["demo_started_at"]
     elapsed = max(0.0, time.monotonic() - started_at)
     step_duration = DEMO_STEP_SECONDS * PACE
-    total_duration = len(DEMO_STEPS) * step_duration
+    narration_on = bool(st.session_state.get("demo_sound", False))
+    last_step_extra = DEMO_LAST_NARRATION_EXTRA_SECONDS * PACE if narration_on else 0.0
+    total_duration = len(DEMO_STEPS) * step_duration + last_step_extra
 
     if elapsed >= total_duration:
         audio_slot.empty()

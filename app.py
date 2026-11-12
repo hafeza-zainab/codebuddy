@@ -89,7 +89,11 @@ def _render_demo(audio_slot) -> None:
     """Render and advance the isolated, sample-only demo replay."""
     if not st.session_state.get("demo_active", False):
         run_demo_col, sound_col = st.columns([1, 1])
-        sound_enabled = sound_col.checkbox("Play narration", value=True)
+        sound_enabled = sound_col.checkbox(
+            "Play narration",
+            value=False,
+            help="Optional voice-over. If you hear nothing, your browser may be blocking autoplay.",
+        )
         if run_demo_col.button("Run demo"):
             st.session_state["demo_active"] = True
             st.session_state["demo_started_at"] = time.monotonic()
@@ -103,8 +107,9 @@ def _render_demo(audio_slot) -> None:
     run_demo_col.button("Run demo", disabled=True)
     sound_col.checkbox(
         "Play narration",
-        value=st.session_state.get("demo_sound", True),
+        value=st.session_state.get("demo_sound", False),
         disabled=True,
+        help="Optional voice-over. If you hear nothing, your browser may be blocking autoplay.",
     )
 
     started_at = st.session_state["demo_started_at"]
@@ -123,7 +128,7 @@ def _render_demo(audio_slot) -> None:
         st.session_state["demo_step"] = step_index
 
     clip_bytes = None
-    if st.session_state.get("demo_sound", True):
+    if st.session_state.get("demo_sound", False):
         audio_cache = st.session_state.setdefault("demo_audio_cache", {})
         if step_index not in audio_cache:
             audio_path = (
@@ -146,7 +151,7 @@ def _render_demo(audio_slot) -> None:
             _clear_demo_state()
             st.rerun()
 
-        if st.session_state.get("demo_sound", True) and clip_bytes is not None:
+        if st.session_state.get("demo_sound", False) and clip_bytes is not None:
             audio_slot.audio(clip_bytes, format="audio/mpeg", autoplay=True)
         elif step_changed:
             audio_slot.empty()
@@ -293,7 +298,7 @@ def main() -> None:
 
     _render_demo(audio_slot)
     demo_active = bool(st.session_state.get("demo_active", False))
-    narration_on = demo_active and bool(st.session_state.get("demo_sound", True))
+    narration_on = demo_active and bool(st.session_state.get("demo_sound", False))
 
     st.session_state.setdefault("messages", [])
     st.session_state.setdefault("loaded_repo_url", "")

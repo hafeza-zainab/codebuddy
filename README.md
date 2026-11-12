@@ -66,6 +66,8 @@ You can also skip the .env step: paste a key into the sidebar field after starti
 
 The **Run demo** button replays sample responses recorded from live runs of this bot. The intro, repo-loaded, and closing messages are scripted. The demo needs no Gemini key.
 
+The demo has optional voice-over narration (the Play narration toggle, off by default because browser autoplay rules can make it unreliable). The nine narration clips were generated with the edge-tts library using Microsoft's en-US-JennyNeural voice, so the narration is AI-generated. The generator is tools/generate_narration.py and the clips are in assets/audio/. The demo video includes the same voice-over.
+
 ## Example session
 
 **Explain question:** What does this project do?
@@ -126,7 +128,7 @@ Python, Streamlit, the GitHub REST API, and the Gemini API.
 
 ## Hackathon disclosure
 
-This project was built for **Build Your First AI App 2026** and work started after October 27, 2026. Codex was used for coding assistance; Gemini powers the app. Streamlit, python-dotenv, and the GitHub API are used under their own terms.
+This project was built for **Build Your First AI App 2026** and work started after October 27, 2026. Codex was used for coding assistance; Gemini powers the app. edge-tts was used once to generate narration audio. Streamlit, python-dotenv, and the GitHub API are used under their own terms.
 
 ## Live demo and demo video
 

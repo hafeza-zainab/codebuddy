@@ -140,7 +140,7 @@ Live demo: https://codebuddy-6gca.onrender.com
 
 The free host may take up to a minute to wake up on the first visit. The Run demo button works without any key.
 
-Demo video: VIDEO_URL_TO_ADD
+Demo video: https://youtu.be/RyxTGIFMDc4
 
 ## What I learned
 

@@ -355,18 +355,19 @@ def main() -> None:
 
     loaded_url = st.session_state.get("loaded_repo_url", "")
     repo_is_ready = bool(loaded_url and repo_url == loaded_url)
-    if repo_is_ready:
-        st.info(f"Using `{loaded_url}`")
-    elif loaded_url and repo_url != loaded_url:
-        st.warning("The URL changed. Load this repository before sending a message.")
-    else:
-        st.info("Enter a public GitHub URL in the sidebar and load it to begin.")
+    if not demo_active:
+        if repo_is_ready:
+            st.info(f"Using `{loaded_url}`")
+        elif loaded_url and repo_url != loaded_url:
+            st.warning("The URL changed. Load this repository before sending a message.")
+        else:
+            st.info("Enter a public GitHub URL in the sidebar and load it to begin.")
 
-    for message in st.session_state["messages"]:
-        with st.chat_message(message["role"]):
-            if message.get("mode_label"):
-                st.caption(message["mode_label"])
-            st.markdown(message["content"])
+        for message in st.session_state["messages"]:
+            with st.chat_message(message["role"]):
+                if message.get("mode_label"):
+                    st.caption(message["mode_label"])
+                st.markdown(message["content"])
 
     user_message = st.chat_input(
         "Ask a question or paste a Python error/traceback...",

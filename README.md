@@ -62,6 +62,10 @@ In the editor, add your key after GEMINI_API_KEY= and save the file.
 
 You can also skip the .env step: paste a key into the sidebar field after starting the app, or press Run demo, which needs no key.
 
+### Optional: GitHub token
+
+CodeBuddy reads public repositories through the GitHub API. Without a token, GitHub limits requests per IP address, and you may see a message that GitHub is limiting requests. To avoid it, create a fine-grained GitHub personal access token with read-only access to public repositories and no other permissions, then add it to your .env file as GITHUB_TOKEN=your_token_here. Never commit your token.
+
 ## The demo
 
 The **Run demo** button replays sample responses recorded from live runs of this bot. The intro, repo-loaded, and closing messages are scripted. The demo needs no Gemini key.
@@ -132,7 +136,9 @@ This project was built for **Build Your First AI App 2026** and work started aft
 
 ## Live demo and demo video
 
-Live demo: LIVE_DEMO_URL_TO_ADD
+Live demo: https://codebuddy-6gca.onrender.com
+
+The free host may take up to a minute to wake up on the first visit. The Run demo button works without any key.
 
 Demo video: VIDEO_URL_TO_ADD
 

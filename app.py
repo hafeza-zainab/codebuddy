@@ -330,8 +330,9 @@ def _render_demo() -> None:
 
     started_at = st.session_state["demo_started_at"]
     elapsed = max(0.0, time.monotonic() - started_at)
-    step_duration = DEMO_STEP_SECONDS * PACE
     narration_on = bool(st.session_state.get("demo_sound", False))
+    narration_pause_seconds = 2.0 if narration_on else 0.0
+    step_duration = (DEMO_STEP_SECONDS - narration_pause_seconds) * PACE
     total_duration = len(DEMO_STEPS) * step_duration
 
     if elapsed >= total_duration:

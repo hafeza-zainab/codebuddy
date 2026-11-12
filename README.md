@@ -132,7 +132,7 @@ Python, Streamlit, the GitHub REST API, and the Gemini API.
 
 ## Hackathon disclosure
 
-This project was built for **Build Your First AI App 2026** and work started after October 27, 2026. Codex was used for coding assistance; Gemini powers the app. edge-tts was used once to generate narration audio. Streamlit, python-dotenv, and the GitHub API are used under their own terms.
+This project was built for **Build Your First AI App 2026** and work started after October 27, 2026. Codex was used for coding assistance; Gemini powers the app. Earlier prototypes of similar ideas existed separately; this repository was written from scratch for this event. AI assistance was used during coding, planning, testing, and documentation. Claude was used for planning and for writing prompts given to Codex. edge-tts was used once to generate narration audio. Streamlit, python-dotenv, and the GitHub API are used under their own terms.
 
 ## Live demo and demo video
 
@@ -144,4 +144,10 @@ Demo video: VIDEO_URL_TO_ADD
 
 ## What I learned
 
-WHAT_I_LEARNED_TO_ADD
+- Loading a repository file by file was far too slow: one mid-sized repo took over a minute. Switching to a single GitHub tree request and fetching files only when needed brought it to about 1.5 seconds.
+- Getting a model to give a hint without giving the answer takes testing. My first "level 1" hint named the line and the variable, so I rewrote the prompt and added automated checks for leaked details.
+- Free-tier models can be overloaded. I measured several models, then added retries and a fallback chain so one busy model does not break the app.
+- When an error did not match the code, the model invented an explanation. I added a rule so it says they do not match.
+- My demo captions once described a slider that never moved. Captions have to describe only what is visible on screen.
+- Free hosting limited what audio could do. On the free host, browser logs showed narration clips loading slowly, some failing to load, and the page falling behind the server, so I kept narration optional and off by default and put the voice-over in the demo video. Logging events in the browser showed this far better than guessing.
+- Without a GitHub token, shared hosting hits GitHub's rate limit, so I added a token and a clearer error message.
